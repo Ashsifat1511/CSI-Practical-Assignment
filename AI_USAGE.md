@@ -30,8 +30,3 @@ brief allows. No AI was used during the reading and clarification stages.
 The entity model, `process_count` / `process_void` / `resolve_pending_voids`, the savepoint-per-item batch,
 the advisory lock and `ON CONFLICT` duplicate strategy, and the MQTT challenge trace from `on_message` to the
 stored and published response.
-
-## Conversation record
-
-The full AI conversation export is attached to the submission as required (exported separately from the CLI
-session; it is not stored in this repository).

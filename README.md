@@ -176,7 +176,6 @@ backend/app/modules/mqtt    protocol.py · service.py · repository.py · worker
 backend/migrations/       SQL migrations
 backend/tests/            pytest suite
 frontend/                 React + Vite dashboard served by nginx
-docs/screenshots/         dashboard / API / MQTT screenshots
 ```
 
 See `TECHNICAL_EXPLANATION.md` for the design and `AI_USAGE.md` for how AI was used.

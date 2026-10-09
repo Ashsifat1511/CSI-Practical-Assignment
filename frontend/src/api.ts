@@ -72,7 +72,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(path, { headers: { "Content-Type": "application/json" }, ...init });
   } catch {
-    throw new ApiError("Backend unreachable – check that the api container is running");
+    throw new ApiError("Backend unreachable. Check that the api container is running");
   }
   const text = await res.text();
   let data: any = null;

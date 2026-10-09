@@ -36,7 +36,7 @@ function nowIso() {
 }
 
 function fmtTime(value: string | null | undefined) {
-  if (!value) return "—";
+  if (!value) return "-";
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : d.toLocaleString();
 }
@@ -165,7 +165,10 @@ export default function App() {
     <div className="page">
       <header className="topbar">
         <div>
-          <p className="eyebrow">NorthBridge Garments · CSI Smart Tech</p>
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">NB</span>
+            <p className="eyebrow">NorthBridge Garments</p>
+          </div>
           <h1>Production Control</h1>
           <p className="lede">
             One source of truth for the supervisor: true piece totals, events waiting for review, exceptions that need attention
@@ -193,7 +196,7 @@ export default function App() {
         </form>
       </header>
 
-      {loadError && <div className="alert err" role="alert">⚠ {loadError}. Showing last known values.</div>}
+      {loadError && <div className="alert err" role="alert">{loadError}. Showing last known values.</div>}
 
       <section className="kpis" aria-label="Production indicators">
         {kpis.map((k) => (
@@ -245,7 +248,7 @@ export default function App() {
           {submitError && <div className="alert err">{submitError}</div>}
           {results && (
             <ul className="results">
-              {results.length === 0 && <li className="muted">Empty array – nothing to process.</li>}
+              {results.length === 0 && <li className="muted">Empty array. Nothing to process.</li>}
               {results.map((r, i) => (
                 <li key={i}>
                   <span className="mono">#{i + 1} {r.event_id ?? "(no id)"}</span>
@@ -264,10 +267,10 @@ export default function App() {
         <div className="card-head">
           <div className="tabs" role="tablist">
             <button role="tab" aria-selected={tab === "pending"} className={tab === "pending" ? "active" : ""} onClick={() => setTab("pending")}>
-              Pending review {pending ? `(${pending.length})` : ""}
+              Pending review{pending && <span className="count">{pending.length}</span>}
             </button>
             <button role="tab" aria-selected={tab === "exceptions"} className={tab === "exceptions" ? "active" : ""} onClick={() => setTab("exceptions")}>
-              Exceptions {exceptions ? `(${exceptions.length})` : ""}
+              Exceptions{exceptions && <span className="count">{exceptions.length}</span>}
             </button>
           </div>
           {tab === "pending" && (
@@ -283,7 +286,10 @@ export default function App() {
             {pending === null ? (
               <p className="muted pad">Loading…</p>
             ) : pending.length === 0 ? (
-              <p className="muted pad">Nothing waiting for review. All processed COUNT events are acknowledged.</p>
+              <div className="empty">
+                <strong>Nothing waiting for review</strong>
+                Every processed COUNT is acknowledged. New counts from the lines will appear here.
+              </div>
             ) : (
               <table>
                 <thead>
@@ -331,7 +337,10 @@ export default function App() {
             {exceptions === null ? (
               <p className="muted pad">Loading…</p>
             ) : exceptions.length === 0 ? (
-              <p className="muted pad">No exceptions. No unresolved references, rejected submissions or conflicts.</p>
+              <div className="empty">
+                <strong>No exceptions</strong>
+                No unresolved references, rejected submissions or conflicts right now.
+              </div>
             ) : (
               <table>
                 <thead>
@@ -350,11 +359,11 @@ export default function App() {
                   {exceptions.map((r, i) => (
                     <tr key={i}>
                       <td data-label="Kind"><Badge status={r.kind} /></td>
-                      <td className="mono" data-label="Event">{r.event_id ?? "—"}</td>
-                      <td data-label="Line">{r.source_id ?? "—"}</td>
-                      <td data-label="Type">{r.type ?? "—"}</td>
-                      <td className="mono" data-label="Target">{r.target_event_id ?? "—"}</td>
-                      <td className="reason" data-label="Reason">{r.reason ?? "—"}</td>
+                      <td className="mono" data-label="Event">{r.event_id ?? "-"}</td>
+                      <td data-label="Line">{r.source_id ?? "-"}</td>
+                      <td data-label="Type">{r.type ?? "-"}</td>
+                      <td className="mono" data-label="Target">{r.target_event_id ?? "-"}</td>
+                      <td className="reason" data-label="Reason">{r.reason ?? "-"}</td>
                       <td data-label="Received">{fmtTime(r.received_at)}</td>
                       <td data-label="Channel">{r.channel}{r.challenge_id ? ` · ${r.challenge_id}` : ""}</td>
                     </tr>
@@ -378,29 +387,30 @@ function MqttPanel({ mqtt }: { mqtt: MqttOverview | null }) {
     <section className="card">
       <div className="card-head">
         <h2>Device link (MQTT)</h2>
-        <span className={`dot dot-${tone}`}>{state}</span>
+        <span className={`link-state link-${tone}`}>{state}</span>
       </div>
       {!mqtt ? (
         <p className="muted">Loading…</p>
       ) : (
         <>
+          <div className="counters">
+            <div className="counter"><b>{mqtt.challenge_counts.total}</b><span>Challenges</span></div>
+            <div className="counter"><b>{mqtt.challenge_counts.completed}</b><span>Completed</span></div>
+            <div className="counter"><b>{mqtt.challenge_counts.failed}</b><span>Failed</span></div>
+          </div>
           <dl className="facts">
             <dt>Candidate ID</dt>
             <dd className="mono">{mqtt.candidate_id ?? mqtt.configured_candidate_id}</dd>
             <dt>Client ID</dt>
-            <dd className="mono">{mqtt.client_id ?? "—"}</dd>
+            <dd className="mono">{mqtt.client_id ?? "-"}</dd>
             <dt>Last heartbeat</dt>
             <dd>{fmtTime(mqtt.last_heartbeat_at)}</dd>
             <dt>Last challenge</dt>
-            <dd className="mono">{mqtt.last_challenge_id ?? "—"}</dd>
+            <dd className="mono">{mqtt.last_challenge_id ?? "-"}</dd>
             <dt>Challenge time</dt>
             <dd>{fmtTime(mqtt.last_challenge_at)}</dd>
             <dt>Last response</dt>
-            <dd>{mqtt.last_response_status ? <Badge status={mqtt.last_response_status} /> : "—"}</dd>
-            <dt>Challenges</dt>
-            <dd>
-              {mqtt.challenge_counts.total} total · {mqtt.challenge_counts.completed} completed · {mqtt.challenge_counts.failed} failed
-            </dd>
+            <dd>{mqtt.last_response_status ? <Badge status={mqtt.last_response_status} /> : "-"}</dd>
             <dt>Last error</dt>
             <dd className={mqtt.last_error ? "text-err" : ""}>
               {mqtt.last_error ? `${mqtt.last_error} (${fmtTime(mqtt.last_error_at)})` : "None"}
