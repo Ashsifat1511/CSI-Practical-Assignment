@@ -36,6 +36,7 @@ class Summary:
     unresolved: int
     duplicates: int
     conflicts: int
+    rejected_submissions: int
 
     def to_dict(self) -> dict:
         return asdict(self)

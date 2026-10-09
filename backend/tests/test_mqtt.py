@@ -34,7 +34,7 @@ def test_repeated_challenge_is_not_processed_again():
     assert first["status"] == "COMPLETED"
     assert [r["status"] for r in first["results"]] == ["ACCEPTED", "ACCEPTED", "ACCEPTED"]
     assert first["state"] == {"net_total": 2, "processed_events": 3, "pending_ack": 2,
-                              "unresolved": 0, "duplicates": 0, "conflicts": 0}
+                              "unresolved": 0, "duplicates": 0, "conflicts": 0, "rejected_submissions": 0}
     n = attempts()
 
     second = handle_mqtt_challenge(payload, CID)
@@ -61,6 +61,15 @@ def test_invalid_item_still_completes():
     resp = handle_mqtt_challenge(challenge(events=[{"event_id": "X"}, count("EV-1", 3)]), CID)
     assert resp["status"] == "COMPLETED"
     assert [r["status"] for r in resp["results"]] == ["REJECTED", "ACCEPTED"]
+
+
+def test_mqtt_applies_quantity_limit_and_reports_rejected_submissions():
+    resp = handle_mqtt_challenge(challenge(events=[count("EV-1", 450), count("EV-2", 501)]), CID)
+    assert resp["status"] == "COMPLETED"
+    assert [r["status"] for r in resp["results"]] == ["ACCEPTED", "REJECTED"]
+    assert "exceeds the maximum of 500" in resp["results"][1]["message"]
+    assert resp["state"]["net_total"] == 450
+    assert resp["state"]["rejected_submissions"] == 1
 
 
 def test_envelope_failures_do_not_process_events():

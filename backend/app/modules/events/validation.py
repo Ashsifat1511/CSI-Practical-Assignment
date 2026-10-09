@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from app.shared.timeutil import parse_iso_with_tz, to_iso_utc
 
 EVENT_TYPES = ("COUNT", "VOID")
+MAX_COUNT_QUANTITY = 500  # factory rule: one COUNT event may report at most 500 pieces
 
 
 @dataclass
@@ -67,6 +68,10 @@ def validate_event(raw: Any) -> ValidationOutcome:
         # bool is a subclass of int in Python, so exclude it explicitly
         if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
             return ValidationOutcome(error="COUNT quantity must be a positive integer")
+        if quantity > MAX_COUNT_QUANTITY:
+            return ValidationOutcome(
+                error=f"COUNT quantity {quantity} exceeds the maximum of {MAX_COUNT_QUANTITY} pieces per event"
+            )
         if target is not None:
             return ValidationOutcome(error="COUNT must not have a target_event_id")
         target_id = None

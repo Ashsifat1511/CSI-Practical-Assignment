@@ -28,7 +28,8 @@ def get_summary(conn: Connection, source_id: Optional[str] = None) -> Summary:
         """
         SELECT
           COUNT(*) FILTER (WHERE classification = 'DUPLICATE') AS duplicates,
-          COUNT(*) FILTER (WHERE classification = 'CONFLICT')  AS conflicts
+          COUNT(*) FILTER (WHERE classification = 'CONFLICT')  AS conflicts,
+          COUNT(*) FILTER (WHERE classification = 'REJECTED')  AS rejected_submissions
         FROM submission_attempts
         WHERE (%(src)s::text IS NULL OR source_id = %(src)s)
         """,
@@ -41,6 +42,7 @@ def get_summary(conn: Connection, source_id: Optional[str] = None) -> Summary:
         unresolved=ev["unresolved"],
         duplicates=at["duplicates"],
         conflicts=at["conflicts"],
+        rejected_submissions=at["rejected_submissions"],
     )
 
 
