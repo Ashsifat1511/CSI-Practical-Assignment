@@ -112,7 +112,7 @@ input:focus-visible, textarea:focus-visible, button:focus-visible {
 .alert.ok { background: var(--ok-soft); color: var(--ok); border-color: var(--ok-soft); }
 
 /* ---------- KPIs: net total is the hero tile ---------- */
-.kpis { display: grid; grid-template-columns: 1.6fr repeat(5, minmax(0, 1fr)); gap: 12px; }
+.kpis { display: grid; grid-template-columns: 1.5fr repeat(6, minmax(0, 1fr)); gap: 12px; }
 .kpi {
   position: relative; overflow: hidden;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -124,6 +124,7 @@ input:focus-visible, textarea:focus-visible, button:focus-visible {
 .kpi:nth-child(4) { animation-delay: 120ms; }
 .kpi:nth-child(5) { animation-delay: 160ms; }
 .kpi:nth-child(6) { animation-delay: 200ms; }
+.kpi:nth-child(7) { animation-delay: 240ms; }
 .kpi::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line); }
 .kpi.warn::after { background: var(--warn); }
 .kpi.danger::after { background: var(--danger); }
@@ -279,4 +280,22 @@ input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px;
   td { border: 0; padding: 5px 0; display: flex; justify-content: space-between; gap: 12px; text-align: right; overflow-wrap: anywhere; }
   td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 12px; font-weight: 600; text-align: left; }
   td.reason { max-width: none; }
+}
+
+/* ---------- change request: rejected submissions + source filter ---------- */
+/* Rejected submissions are not production: hatched, error-tinted tile so it never reads as output. */
+.kpi.rejected {
+  background:
+    repeating-linear-gradient(135deg, var(--danger-soft) 0 6px, transparent 6px 14px),
+    var(--surface);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+  border-style: dashed;
+}
+.kpi.rejected::after { background: var(--danger); }
+.kpi.rejected .kpi-value { color: var(--danger); }
+
+.filter-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scope-chip {
+  font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+  background: var(--accent-soft); color: var(--accent);
 }

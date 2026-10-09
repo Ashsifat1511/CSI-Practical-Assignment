@@ -44,7 +44,7 @@ Data access is raw SQL with psycopg 3; there is no ORM.
   worker or the frontend.
 * **state/queries.py** has `get_summary()`, which backs both `GET /api/state` and the `state` field of the MQTT
   response. Totals are always computed from tables:
-  `net_total = SUM(quantity)` of ACCEPTED COUNTs where `voided_by_event_id IS NULL`.
+  `net_total = SUM(quantity)` of ACCEPTED COUNTs where `voided_by_event_id IS NULL`. The summary also returns `rejected_submissions` (attempts classified REJECTED).
 * **ack** uses a conditional `UPDATE … WHERE acknowledged_at IS NULL` per ID, which keeps it concurrency-safe.
 * **mqtt** has three layers:
   * `protocol.py`: pure envelope validation and response builders.
@@ -67,6 +67,7 @@ Data access is raw SQL with psycopg 3; there is no ORM.
 
 ### Event processing rules (see `events/service.py`)
 
+* **Quantity limit:** COUNT quantity must be 1..500 (`MAX_COUNT_QUANTITY` in `events/validation.py`).
 * **Locking:** exactly one `pg_advisory_xact_lock(hashtext(key))` per item. A COUNT locks its own ID; a VOID
   locks its target ID. Keep it to one lock per item to avoid deadlocks.
 * **Duplicates and conflicts:** an existing `event_id` is compared on the `normalized` JSON (UTC ISO time,

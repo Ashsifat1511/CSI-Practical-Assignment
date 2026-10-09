@@ -7,6 +7,7 @@ export interface Summary {
   unresolved: number;
   duplicates: number;
   conflicts: number;
+  rejected_submissions: number;
 }
 
 export interface ItemResult {

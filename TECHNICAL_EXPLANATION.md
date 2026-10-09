@@ -119,3 +119,22 @@ commit together, a crash cannot leave events processed without a stored response
 | Challenge processing order | Parse, then challenge_id, then claim the ID (replay or conflict check), then protocol, candidate, command, expiry and events, and only then events. Envelope failures for new IDs are stored so a replay returns the same FAILED response. |
 | Challenge status topic | Status messages are JSON `{protocol_version, candidate_id, client_id, status, sent_at}`. |
 | Empty array | HTTP 200 with `results: []`. |
+
+## 8. Change request: quantity limit and rejected submissions
+
+The change touched four places. No rewrite was needed, because each rule already had exactly one owner.
+
+| Requirement | Function changed | Why only here |
+|---|---|---|
+| COUNT quantity 1..500 | `events/validation.py` `validate_event()` (`MAX_COUNT_QUANTITY = 500`) | Validation is the single gate that REST and MQTT both pass through (`process_batch` → `process_event` → `validate_event`). The existing reject path already records the attempt and keeps it out of `production_events`, so totals cannot increase. |
+| `rejected_submissions` in the summary | `state/queries.get_summary()` + `shared/contracts.Summary` | The REST summary and the MQTT response `state` both come from `get_summary()`, so the field appears in both automatically. It is one extra `COUNT(*) FILTER (WHERE classification = 'REJECTED')` on `submission_attempts`, using the existing `source_id` filter. |
+| Source filter + 7th indicator | `frontend/src/App.tsx`, `api.ts`, `styles.css` | The API already supported `source_id`; the UI only adds Clear, a scope label, loading resets and the new tile. |
+
+Assumptions:
+* An over-limit COUNT that reuses an existing event ID is reported as `REJECTED`, not CONFLICT. Validation
+  always runs before identity checks; that was already the case for every other invalid item. The original
+  event is still preserved.
+* `rejected_submissions` counts attempts rejected at submission time (validation and business-rule rejects such
+  as a VOID for an already reversed COUNT). A pending VOID that later loses resolution keeps its attempt
+  classification `PENDING_REFERENCE`, so it is excluded, as the change request specifies. It still appears in
+  the Exceptions view as `REJECTED_VOID`.

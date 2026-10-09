@@ -53,7 +53,7 @@ docker compose down -v                       # stop and DELETE all data
 docker compose run --rm api pytest -q
 ```
 
-There are 18 tests. They run against the separate `northbridge_test` database, never the demo data:
+There are 26 tests. They run against the separate `northbridge_test` database, never the demo data:
 
 * Required: COUNT and total, identical duplicate not double counted, VOID before COUNT resolution,
   repeated acknowledgement, repeated MQTT challenge not reprocessed
@@ -88,7 +88,7 @@ curl -s -X POST localhost:8000/api/events -d '"hello"'     # HTTP 400 (not an ev
 
 ```bash
 curl -s "localhost:8000/api/state?view=summary"
-# {"view":"summary","source_id":null,"net_total":5,"processed_events":3,"pending_ack":2,"unresolved":0,"duplicates":1,"conflicts":1}
+# {"view":"summary","source_id":null,"net_total":5,"processed_events":3,"pending_ack":2,"unresolved":0,"duplicates":1,"conflicts":1,"rejected_submissions":1}
 curl -s "localhost:8000/api/state?view=summary&source_id=LINE-01"
 curl -s "localhost:8000/api/state?view=pending"
 curl -s "localhost:8000/api/state?view=exceptions"
@@ -128,7 +128,7 @@ Reconnects use exponential backoff (1 s to 30 s) and resubscribe on every connec
 1. The simulator publishes a challenge on `.../challenge`.
 2. `worker.on_message` calls `handle_mqtt_challenge(payload)`, which opens **one DB transaction**, claims the
    `challenge_id` in `mqtt_challenges` and validates the envelope (protocol, candidate, command, expiry, events).
-   It then calls the same `events.service.process_batch()` used by REST and reads the six-field state with
+   It then calls the same `events.service.process_batch()` used by REST and reads the summary state (six original fields plus `rejected_submissions`) with
    `state.queries.get_summary()`. Finally it stores the response and commits.
 3. The worker publishes the response on `.../response` and updates `mqtt_worker_status`. The dashboard shows it
    within 5 s.
@@ -138,7 +138,7 @@ Reconnects use exponential backoff (1 s to 30 s) and resubscribe on every connec
 ```json
 {"protocol_version":"1.0","candidate_id":"CAND-017","challenge_id":"CH-7e1c4a42","status":"COMPLETED",
  "processed_at":"2026-10-09T10:45:02Z","results":[{"event_id":"EV-101","status":"ACCEPTED","message":"Event processed"}],
- "state":{"net_total":5,"processed_events":1,"pending_ack":1,"unresolved":0,"duplicates":0,"conflicts":0}}
+ "state":{"net_total":5,"processed_events":1,"pending_ack":1,"unresolved":0,"duplicates":0,"conflicts":0,"rejected_submissions":0}}
 ```
 
 ### Offline testing with a local broker
@@ -179,3 +179,25 @@ frontend/                 React + Vite dashboard served by nginx
 ```
 
 See `TECHNICAL_EXPLANATION.md` for the design and `AI_USAGE.md` for how AI was used.
+
+## 7. Change request: quantity limit and rejected submissions
+
+* **COUNT quantity limit:** a COUNT must have an integer quantity from 1 to 500. A quantity of 501 or more is
+  `REJECTED` with the reason "COUNT quantity N exceeds the maximum of 500 pieces per event". The attempt is stored
+  in `submission_attempts` and never changes the totals. The rule lives in one place,
+  `events/validation.py` (`MAX_COUNT_QUANTITY`), so it applies to REST and MQTT alike.
+* **`rejected_submissions`** in `GET /api/state?view=summary` and in the MQTT response `state`: the number of
+  stored attempts classified `REJECTED`, calculated in `state/queries.get_summary()`. It respects `source_id`
+  and excludes DUPLICATE, CONFLICT and PENDING_REFERENCE attempts.
+* **Dashboard:** a Production source filter (Apply/Clear) drives the Summary, Pending and Exceptions views
+  through the API's `source_id`. A seventh indicator shows Rejected submissions, with a hatched error style so
+  it is not mistaken for production output.
+
+```bash
+curl -s -X POST localhost:8000/api/events -H 'Content-Type: application/json' -d '[
+  {"source_id":"LINE-05","event_id":"CR-450","type":"COUNT","quantity":450,"event_time":"2026-10-09T11:00:00Z"},
+  {"source_id":"LINE-05","event_id":"CR-501","type":"COUNT","quantity":501,"event_time":"2026-10-09T11:00:00Z"}]'
+# -> ACCEPTED, REJECTED ("COUNT quantity 501 exceeds the maximum of 500 pieces per event")
+curl -s "localhost:8000/api/state?view=summary&source_id=LINE-05"
+# {"view":"summary","source_id":"LINE-05","net_total":450,"processed_events":1,"pending_ack":1,"unresolved":0,"duplicates":0,"conflicts":0,"rejected_submissions":1}
+```

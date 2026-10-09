@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, ExceptionRow, ItemResult, MqttOverview, PendingRow, Summary } from "./api";
 
 const REFRESH_MS = 5000;
@@ -8,6 +8,14 @@ const SAMPLES: { label: string; body: (n: number) => unknown }[] = [
   {
     label: "COUNT +5",
     body: (n) => ({ source_id: "LINE-01", event_id: `EV-${n}01`, type: "COUNT", quantity: 5, target_event_id: null, event_time: nowIso() }),
+  },
+  {
+    label: "COUNT 450",
+    body: (n) => ({ source_id: "LINE-02", event_id: `EV-${n}45`, type: "COUNT", quantity: 450, event_time: nowIso() }),
+  },
+  {
+    label: "COUNT 501 (over limit)",
+    body: (n) => ({ source_id: "LINE-02", event_id: `EV-${n}50`, type: "COUNT", quantity: 501, event_time: nowIso() }),
   },
   {
     label: "VOID before COUNT",
@@ -58,6 +66,8 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const currentSource = useRef(source);
+  currentSource.current = source;
 
   const [tab, setTab] = useState<Tab>("pending");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -74,6 +84,7 @@ export default function App() {
     setRefreshing(true);
     try {
       const [s, p, e, m] = await Promise.all([api.summary(source), api.pending(source), api.exceptions(source), api.mqtt()]);
+      if (currentSource.current !== source) return; // filter changed while loading: drop stale data
       setSummary(s);
       setPending(p.items);
       setExceptions(e.items);
@@ -86,6 +97,14 @@ export default function App() {
     } finally {
       setRefreshing(false);
     }
+  }, [source]);
+
+  // A new source filter invalidates every visible value: show loading placeholders until the filtered data arrives.
+  useEffect(() => {
+    setSummary(null);
+    setPending(null);
+    setExceptions(null);
+    setSelected(new Set());
   }, [source]);
 
   useEffect(() => {
@@ -159,7 +178,10 @@ export default function App() {
     { key: "unresolved", label: "Unresolved references", hint: "VOIDs waiting for their COUNT", tone: "warn" },
     { key: "duplicates", label: "Duplicates", hint: "Identical resends, not counted" },
     { key: "conflicts", label: "Conflicts", hint: "Same ID, different data", tone: "danger" },
+    { key: "rejected_submissions", label: "Rejected submissions", hint: "Invalid or over-limit, never counted", tone: "rejected" },
   ];
+
+  const scope = source ? ` for ${source}` : "";
 
   return (
     <div className="page">
@@ -182,16 +204,28 @@ export default function App() {
             setSource(sourceDraft.trim());
           }}
         >
-          <label htmlFor="src">Production line</label>
+          <label htmlFor="src">Production source</label>
           <div className="filter-row">
-            <input id="src" placeholder="All lines (e.g. LINE-01)" value={sourceDraft} onChange={(e) => setSourceDraft(e.target.value)} />
-            <button type="submit" className="btn">Apply</button>
+            <input id="src" placeholder="All sources (e.g. LINE-01)" value={sourceDraft} onChange={(e) => setSourceDraft(e.target.value)} />
+            <button type="submit" className="btn" disabled={sourceDraft.trim() === source}>Apply</button>
+            <button
+              type="button"
+              className="btn ghost"
+              disabled={!source && !sourceDraft}
+              onClick={() => {
+                setSourceDraft("");
+                setSource("");
+              }}
+            >
+              Clear
+            </button>
             <button type="button" className="btn ghost" onClick={refresh} disabled={refreshing}>
               {refreshing ? "Refreshing…" : "Refresh"}
             </button>
           </div>
-          <span className="muted small">
-            {source ? `Filtered: ${source}` : "All lines"} · {lastUpdated ? `updated ${lastUpdated.toLocaleTimeString()}` : "loading…"}
+          <span className="small filter-status">
+            {source ? <span className="scope-chip">Showing {source}</span> : <span className="muted">Showing all sources</span>}
+            <span className="muted">{refreshing && !summary ? "loading…" : lastUpdated ? `updated ${lastUpdated.toLocaleTimeString()}` : "loading…"}</span>
           </span>
         </form>
       </header>
@@ -287,7 +321,7 @@ export default function App() {
               <p className="muted pad">Loading…</p>
             ) : pending.length === 0 ? (
               <div className="empty">
-                <strong>Nothing waiting for review</strong>
+                <strong>Nothing waiting for review{scope}</strong>
                 Every processed COUNT is acknowledged. New counts from the lines will appear here.
               </div>
             ) : (
@@ -338,7 +372,7 @@ export default function App() {
               <p className="muted pad">Loading…</p>
             ) : exceptions.length === 0 ? (
               <div className="empty">
-                <strong>No exceptions</strong>
+                <strong>No exceptions{scope}</strong>
                 No unresolved references, rejected submissions or conflicts right now.
               </div>
             ) : (
