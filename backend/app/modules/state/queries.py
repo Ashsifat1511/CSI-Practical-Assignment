@@ -68,12 +68,12 @@ def get_exceptions(conn: Connection, source_id: Optional[str] = None, limit: int
         """
         SELECT * FROM (
             SELECT 'UNRESOLVED_REFERENCE' AS kind, event_id, source_id, type, quantity, target_event_id,
-                   event_time::text AS event_time, received_at, status, reason, channel, NULL::text AS challenge_id
+                   normalized->>'event_time' AS event_time, received_at, status, reason, channel, NULL::text AS challenge_id
             FROM production_events
             WHERE status = 'PENDING_REFERENCE' AND (%(src)s::text IS NULL OR source_id = %(src)s)
           UNION ALL
             SELECT 'REJECTED_VOID', event_id, source_id, type, quantity, target_event_id,
-                   event_time::text, resolved_at, status, reason, channel, NULL
+                   normalized->>'event_time', resolved_at, status, reason, channel, NULL
             FROM production_events
             WHERE status = 'REJECTED' AND (%(src)s::text IS NULL OR source_id = %(src)s)
           UNION ALL
