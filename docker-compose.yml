@@ -1,0 +1,65 @@
+name: northbridge
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:-northbridge}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-northbridge}
+  TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-northbridge}:${POSTGRES_PASSWORD:-change-me}@db:5432/northbridge_test
+  CANDIDATE_ID: ${CANDIDATE_ID:-CAND-000}
+  MQTT_HOST: ${MQTT_HOST:-152.42.238.142}
+  MQTT_PORT: ${MQTT_PORT:-1883}
+  MQTT_HEARTBEAT_SECONDS: ${MQTT_HEARTBEAT_SECONDS:-15}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-northbridge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-northbridge}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init-test-db.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build: ./backend
+    environment: *backend-env
+    command: ["python", "-m", "app.migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: ./backend
+    environment: *backend-env
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  mqtt-worker:
+    build: ./backend
+    environment: *backend-env
+    command: ["python", "-m", "app.modules.mqtt.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
